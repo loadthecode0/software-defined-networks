@@ -14,7 +14,7 @@ from mininet.net import Mininet
 from mininet.node import RemoteController, OVSSwitch
 from mininet.cli import CLI
 from mininet.log import setLogLevel, info
-from topology.p1_topo import CustomTopo
+from p1_topo import CustomTopo
 
 
 def run_test(controller_type):

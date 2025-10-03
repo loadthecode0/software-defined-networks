@@ -14,25 +14,43 @@ from ryu.lib.packet import packet, ethernet, ether_types
 
 
 
-# ------------------------------------------------------
-# LoadBalancedSPController (bonus)
-# ------------------------------------------------------
 class LoadBalancedSPController(BaseSPController):
     """Load-balanced shortest path: choose path based on utilization"""
 
     def choose_path(self, all_paths: List[List[str]]) -> List[str]:
-        """
-        Override: pick path with lowest utilization.
-        (If equal, break ties randomly.)
-        """
         if not all_paths:
             return []
+        # Pick path with lowest utilization
+        best_path = min(all_paths, key=lambda p: self.graph.path_utilization(p))
+        return best_path
 
-        # TODO: implement weighted selection using self.link_util
-        return random.choice(all_paths)
+    def install_path_flows(self, path: List[str], src_mac=None, dst_mac=None):
+        """
+        Install flows and update link utilization along chosen path.
+        """
+        self.logger.info("Installing load-balanced flows along %s for %s → %s", path, src_mac, dst_mac)
 
-    @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
-    def _packet_in_handler(self, ev):
-        """PacketIn: compute load-aware path, install flows, forward"""
-        # TODO: same as ShortestPathController but path choice is load-aware
-        pass
+        for i in range(len(path) - 1):
+            cur_switch = path[i]
+            next_switch = path[i+1]
+
+            dp = self.datapaths.get(int(cur_switch[1:]))
+            if not dp:
+                continue
+
+            parser = dp.ofproto_parser
+            ofproto = dp.ofproto
+
+            out_port = None
+            for (nbr, w) in self.graph.G[cur_switch].items():
+                if nbr == next_switch:
+                    out_port = self.graph.G[cur_switch][nbr].get("port", None)
+            if out_port is None:
+                continue
+
+            match = parser.OFPMatch(eth_src=src_mac, eth_dst=dst_mac)
+            actions = [parser.OFPActionOutput(out_port)]
+            self.add_flow(dp, 1, match, actions)
+
+            # Update utilization (simple +1 per flow)
+            self.graph.update_utilization(cur_switch, next_switch, delta=1.0)

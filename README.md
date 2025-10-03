@@ -32,7 +32,31 @@ sudo python3 part1/p1_test.py hub
 sudo python3 part1/p1_test.py learning
 ```
 
-#### Look at the installed rules at a node
+### PART 2
+
+#### For L2SPF Controller
+```
+ryu-manager part2/p2_l2spf.py
+```
+
+#### For Learning Switch
+```
+ryu-manager part2/p2bonus_l2spf.py
+```
+
+In another terminal, start the test script:
+
+#### Test Hub
+```
+sudo python3 part2/p2_test.py sp
+```
+
+#### Test Learning Switch
+```
+sudo python3 part2/p2_test.py lb
+```
+
+### Look at the installed rules at a node
 
 In yet another terminal:
 
@@ -44,3 +68,15 @@ Or, to watch the rules live:
 ```
 watch -n 1 "sudo ovs-ofctl dump-flows s1 -O OpenFlow13"
 ```
+
+# Some pointers regarding the libraries
+
+## Datapath
+
+In Ryu (and OpenFlow in general), a datapath is the logical representation of a switch that has connected to the controller.
+
+It’s essentially a Python object (datapath) that encapsulates:
+- The switch’s datapath ID (DPID) — unique identifier (like “s1” → DPID=1).
+- The switch’s OpenFlow protocol version.
+- A channel/socket between the controller and the switch.
+- Methods to send OpenFlow messages (e.g., flow mods, packet outs).

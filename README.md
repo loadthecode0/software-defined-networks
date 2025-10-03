@@ -31,3 +31,16 @@ sudo python3 part1/p1_test.py hub
 ```
 sudo python3 part1/p1_test.py learning
 ```
+
+#### Look at the installed rules at a node
+
+In yet another terminal:
+
+```
+sudo ovs-ofctl dump-flows <nodename> -O OpenFlow13
+```
+Or, to watch the rules live:
+
+```
+watch -n 1 "sudo ovs-ofctl dump-flows s1 -O OpenFlow13"
+```

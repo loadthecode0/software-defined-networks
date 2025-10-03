@@ -55,8 +55,8 @@ def run_test(controller_type):
     net.pingAll()
 
     info("*** Running iperf test between h1 and h3\n")
-    h1, h3 = net.get("h1"), net.get("h3")
-    net.iperf((h1, h3))
+    h1, h2 = net.get("h1"), net.get("h2")
+    net.iperf((h1, h2))
 
     info("*** You can run more commands in the CLI\n")
     CLI(net)

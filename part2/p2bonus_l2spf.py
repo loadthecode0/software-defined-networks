@@ -229,7 +229,9 @@ class LoadBalancedSPController(BaseSPController):
             ofproto = dp.ofproto
 
             # out_port toward next switch
-            out_port = self.adjacency.get(cur, {}).get(nxt)
+            # out_port = self.adjacency.get(cur, {}).get(nxt)
+            out_port = self.adjacency.get(int(cur), {}).get(int(nxt))
+
             if out_port is None:
                 self.logger.warning("No adjacency port for s%s -> s%s; skipping", cur, nxt)
                 continue
@@ -246,7 +248,8 @@ class LoadBalancedSPController(BaseSPController):
                 rev_out = src_host_port
             else:
                 prev = dpids[i - 1]
-                rev_out = self.adjacency.get(cur, {}).get(prev)
+                # rev_out = self.adjacency.get(cur, {}).get(prev)
+                rev_out = self.adjacency.get(int(cur), {}).get(int(prev))
 
             if rev_out is None:
                 self.logger.warning("No reverse port known for s%s when installing reverse flow", cur)
@@ -254,8 +257,9 @@ class LoadBalancedSPController(BaseSPController):
                 match_rev = parser.OFPMatch(eth_src=dst_mac, eth_dst=src_mac)
                 actions_rev = [parser.OFPActionOutput(rev_out)]
                 self.add_flow(dp, priority=1, match=match_rev, actions=actions_rev)
-    
-                self.graph.update_utilization(cur_switch, nxt, delta=1.0)
+                self.graph.update_utilization(cur, nxt, delta=1.0)
+
+                # self.graph.update_utilization(cur_switch, nxt, delta=1.0)
 
 
             self.logger.info("s%s: installed %s->%s out:%s and reverse out:%s", cur, src_mac, dst_mac, out_port, rev_out)
@@ -281,7 +285,9 @@ class LoadBalancedSPController(BaseSPController):
             # reverse on destination switch: packets from dst->src should go towards previous switch
             if len(dpids) >= 2:
                 prev = dpids[-2]
-                rev_out = self.adjacency.get(final_switch, {}).get(prev)
+                # rev_out = self.adjacency.get(final_switch, {}).get(prev)
+                rev_out = self.adjacency.get(int(final_switch), {}).get(int(prev))
+
                 if rev_out is None:
                     self.logger.warning("No reverse port on final switch s%s to previous s%s", final_switch, prev)
                 else:

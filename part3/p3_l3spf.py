@@ -294,6 +294,7 @@ class L3ShortestPath(app_manager.RyuApp):
         self.install_path(path, ip_pkt.dst)
         self.install_path(list(reversed(path)), ip_pkt.src)
 
+
     def install_path(self, path, dst_ip):
         """
         Install L3 flows along a path for a given destination IP.
@@ -301,41 +302,66 @@ class L3ShortestPath(app_manager.RyuApp):
         """
         for i in range(len(path)):
             curr_switch = path[i]
-            dp = next((d for d in self.datapaths.values() if d.id == self.switches[curr_switch]["dpid"]), None)
+            # dp = next((d for d in self.datapaths.values()
+            #         if d.id == int(self.switches[curr_switch]["dpid"]), None))
+            dp = next((d for d in self.datapaths.values()
+                      if d.id == int(self.switches[curr_switch]["dpid"])), None)
+
             if not dp:
                 continue
             parser = dp.ofproto_parser
 
             # Determine next hop
             if i < len(path) - 1:
-                next_hop = path[i+1]
+                next_hop = path[i + 1]
             else:
                 next_hop = dst_ip  # final hop to host
 
-            # Determine output port and MAC addresses
-            if next_hop in self.hosts:
-                # Last hop to host
-                dst_host_mac = self.hosts[dst_ip]["mac"]
-                out_iface = next((iface for iface in self.switches[curr_switch]["interfaces"]
-                                if ipaddress.ip_address(dst_ip) in ipaddress.ip_network(iface["subnet"])), None)
-                if not out_iface: 
+            # --- Host-facing hop (final switch only) ---
+            if (i == len(path) - 1) and (dst_ip in self.hosts):
+                host_entry = self.hosts[dst_ip]
+                host_name = host_entry["name"]
+                dst_host_mac = host_entry["mac"]
+
+                out_iface = next(
+                    (iface for iface in self.switches[curr_switch]["interfaces"]
+                    if iface.get("neighbor") == host_name),
+                    None
+                )
+
+                if not out_iface:
+                    self.logger.warning("No host-facing interface on %s for host %s (%s)",
+                                        curr_switch, host_name, dst_ip)
                     continue
+
                 out_port = int(out_iface["name"].split("eth")[-1])
                 src_mac = out_iface["mac"]
                 dst_mac = dst_host_mac
+
+                self.logger.info("Host-facing port on %s for %s is %s",
+                                curr_switch, dst_ip, out_iface["name"])
+
+            # --- Switch-to-switch hops ---
             else:
-                # Next hop is a switch
-                out_iface = next((iface for iface in self.switches[curr_switch]["interfaces"]
-                                if iface.get("neighbor") == next_hop), None)
-                in_iface_next = next((iface for iface in self.switches[next_hop]["interfaces"]
-                                    if iface.get("neighbor") == curr_switch), None)
-                if not out_iface or not in_iface_next: 
+                out_iface = next(
+                    (iface for iface in self.switches[curr_switch]["interfaces"]
+                    if iface.get("neighbor") == next_hop),
+                    None)
+                in_iface_next = next(
+                    (iface for iface in self.switches[next_hop]["interfaces"]
+                    if iface.get("neighbor") == curr_switch),
+                    None)
+
+                if not out_iface or not in_iface_next:
+                    self.logger.warning("Missing inter-switch iface for %s -> %s",
+                                        curr_switch, next_hop)
                     continue
+
                 out_port = int(out_iface["name"].split("eth")[-1])
                 src_mac = out_iface["mac"]
                 dst_mac = in_iface_next["mac"]
 
-            # Create match and actions
+            # Install flow
             match = parser.OFPMatch(eth_type=ether_types.ETH_TYPE_IP, ipv4_dst=dst_ip)
             actions = [
                 parser.OFPActionSetField(eth_src=src_mac),
@@ -344,92 +370,183 @@ class L3ShortestPath(app_manager.RyuApp):
                 parser.OFPActionOutput(out_port)
             ]
 
-            # Install the flow
             self.add_flow(dp, 10, match, actions)
             self.logger.info("Installed L3 flow on %s for dst %s -> port %d (MACs %s -> %s)",
                             curr_switch, dst_ip, out_port, src_mac, dst_mac)
 
 
-
-
     # def install_path(self, path, dst_ip):
-    #     # Find the destination host's information from the config
-    #     dst_host_mac = self.hosts.get(dst_ip, {}).get("mac")
-    #     if not dst_host_mac:
-    #         self.logger.error("Destination host %s not in config", dst_ip)
-    #         return
-
-    #     # Install flows for each hop in the path
+    #     """
+    #     Install L3 flows along a path for a given destination IP.
+    #     Handles switch-to-switch hops and final hop to host.
+    #     """
     #     for i in range(len(path)):
-    #         s_name = path[i]
-    #         sw = self.switches[s_name]
-    #         dp = next((d for d in self.datapaths.values() if d.id == sw["dpid"]), None)
+    #         curr_switch = path[i]
+    #         dp = next((d for d in self.datapaths.values() if d.id == self.switches[curr_switch]["dpid"]), None)
     #         if not dp:
     #             continue
-
     #         parser = dp.ofproto_parser
-            
-    #         # Determine the next hop and find the correct MACs and output port
-    #         if i < len(path) - 1:
-    #             # This is an intermediate switch-to-switch hop
-    #             next_s_name = path[i+1]
-                
-    #             # Find the interface on the current switch facing the next switch
-    #             out_iface = next((iface for iface in sw["interfaces"] if iface.get("neighbor") == next_s_name), None)
-    #             if not out_iface: continue
-                
-    #             # Find the interface on the next switch that connects back to the current one
-    #             next_sw_config = self.switches[next_s_name]
-    #             in_iface_next_hop = next((iface for iface in next_sw_config["interfaces"] if iface.get("neighbor") == s_name), None)
-    #             if not in_iface_next_hop: continue
-                
-    #             out_port = int(out_iface["name"].split("eth")[-1])
-    #             new_src_mac = out_iface["mac"]
-    #             new_dst_mac = in_iface_next_hop["mac"]
 
+    #         # Determine next hop
+    #         if i < len(path) - 1:
+    #             next_hop = path[i+1]
     #         else:
-    #             # This is the final hop from the last switch to the destination host
-                
-    #             # Find the interface on the last switch connected to the destination host's subnet
-    #             dst_host_ip_obj = ipaddress.ip_address(dst_ip)
-    #             out_iface = next((iface for iface in sw["interfaces"] if dst_host_ip_obj in ipaddress.ip_network(iface["subnet"])), None)
-    #             if not out_iface: continue
-                
+    #             next_hop = dst_ip  # final hop to host
+
+    #         # Determine output port and MAC addresses
+    #         if dst_ip in self.hosts:
+    #             # Final hop to host
+    #             host_entry = self.hosts[dst_ip]
+    #             host_name = host_entry["name"]
+    #             dst_host_mac = host_entry["mac"]
+
+    #             # Find interface facing the host (neighbor == host name)
+    #             out_iface = next(
+    #                 (iface for iface in self.switches[curr_switch]["interfaces"]
+    #                  if iface.get("neighbor") == host_name),
+    #                 None
+    #             )
+
+    #             if not out_iface:
+    #                 self.logger.warning("No host-facing interface on %s for host %s (%s)",
+    #                                     curr_switch, host_name, dst_ip)
+    #                 continue
+
     #             out_port = int(out_iface["name"].split("eth")[-1])
-    #             new_src_mac = out_iface["mac"]
-    #             new_dst_mac = dst_host_mac # The final destination MAC is the host's MAC
-            
-    #         # Define the match and actions for the flow rule
+    #             src_mac = out_iface["mac"]
+    #             dst_mac = dst_host_mac
+    #         else:
+    #             # Next hop is another switch
+    #             out_iface = next((iface for iface in self.switches[curr_switch]["interfaces"]
+    #                             if iface.get("neighbor") == next_hop), None)
+    #             in_iface_next = next((iface for iface in self.switches[next_hop]["interfaces"]
+    #                                 if iface.get("neighbor") == curr_switch), None)
+    #             if not out_iface or not in_iface_next:
+    #                 self.logger.warning("Missing inter-switch iface for %s -> %s", curr_switch, next_hop)
+    #                 continue
+    #             out_port = int(out_iface["name"].split("eth")[-1])
+    #             src_mac = out_iface["mac"]
+    #             dst_mac = in_iface_next["mac"]
+
+
+            # Determine output port and MAC addresses
+    #         if next_hop in self.hosts:
+    #             # Last hop to host
+    #             dst_host_mac = self.hosts[dst_ip]["mac"]
+    #             out_iface = next((iface for iface in self.switches[curr_switch]["interfaces"]
+    #                             if ipaddress.ip_address(dst_ip) in ipaddress.ip_network(iface["subnet"])), None)
+    #             if not out_iface: 
+    #                 continue
+    #             out_port = int(out_iface["name"].split("eth")[-1])
+    #             src_mac = out_iface["mac"]
+    #             dst_mac = dst_host_mac
+    #         else:
+    #             # Next hop is a switch
+    #             out_iface = next((iface for iface in self.switches[curr_switch]["interfaces"]
+    #                             if iface.get("neighbor") == next_hop), None)
+    #             in_iface_next = next((iface for iface in self.switches[next_hop]["interfaces"]
+    #                                 if iface.get("neighbor") == curr_switch), None)
+    #             if not out_iface or not in_iface_next: 
+    #                 continue
+    #             out_port = int(out_iface["name"].split("eth")[-1])
+    #             src_mac = out_iface["mac"]
+    #             dst_mac = in_iface_next["mac"]
+
+    #         # Create match and actions
     #         match = parser.OFPMatch(eth_type=ether_types.ETH_TYPE_IP, ipv4_dst=dst_ip)
     #         actions = [
-    #             parser.OFPActionSetField(eth_src=new_src_mac),
-    #             parser.OFPActionSetField(eth_dst=new_dst_mac),
+    #             parser.OFPActionSetField(eth_src=src_mac),
+    #             parser.OFPActionSetField(eth_dst=dst_mac),
     #             parser.OFPActionDecNwTtl(),
     #             parser.OFPActionOutput(out_port)
     #         ]
+
+    #         # Install the flow
     #         self.add_flow(dp, 10, match, actions)
-    #         self.logger.info("Installed L3 flow on %s for dst %s -> port %d (MACs %s -> %s)", 
-    #                          s_name, dst_ip, out_port, new_src_mac, new_dst_mac)
+    #         self.logger.info("Installed L3 flow on %s for dst %s -> port %d (MACs %s -> %s)",
+    #                         curr_switch, dst_ip, out_port, src_mac, dst_mac)
 
 
 
 
-    # def install_path(self, path, dst_ip):
-    #     for i in range(len(path) - 1):
-    #         s1, s2 = path[i], path[i + 1]
-    #         sw = self.switches[s1]
-    #         out_port = None
-    #         for iface in sw["interfaces"]:
-    #             if iface["neighbor"] == s2:
-    #                 out_port = int(iface["name"].split("eth")[-1])
-    #                 break
-    #         if not out_port:
-    #             continue
-    #         dp = next((d for d in self.datapaths.values() if d.id == sw["dpid"]), None)
-    #         if dp:
-    #             parser = dp.ofproto_parser
-    #             match = parser.OFPMatch(eth_type=ether_types.ETH_TYPE_IP, ipv4_dst=dst_ip)
-    #             actions = [parser.OFPActionOutput(out_port)]
-    #             self.add_flow(dp, 10, match, actions)
-    #             self.logger.info("Installed flow on %s for dst %s -> port %s", s1, dst_ip, out_port)
+    # # def install_path(self, path, dst_ip):
+    # #     # Find the destination host's information from the config
+    # #     dst_host_mac = self.hosts.get(dst_ip, {}).get("mac")
+    # #     if not dst_host_mac:
+    # #         self.logger.error("Destination host %s not in config", dst_ip)
+    # #         return
+
+    # #     # Install flows for each hop in the path
+    # #     for i in range(len(path)):
+    # #         s_name = path[i]
+    # #         sw = self.switches[s_name]
+    # #         dp = next((d for d in self.datapaths.values() if d.id == sw["dpid"]), None)
+    # #         if not dp:
+    # #             continue
+
+    # #         parser = dp.ofproto_parser
+            
+    # #         # Determine the next hop and find the correct MACs and output port
+    # #         if i < len(path) - 1:
+    # #             # This is an intermediate switch-to-switch hop
+    # #             next_s_name = path[i+1]
+                
+    # #             # Find the interface on the current switch facing the next switch
+    # #             out_iface = next((iface for iface in sw["interfaces"] if iface.get("neighbor") == next_s_name), None)
+    # #             if not out_iface: continue
+                
+    # #             # Find the interface on the next switch that connects back to the current one
+    # #             next_sw_config = self.switches[next_s_name]
+    # #             in_iface_next_hop = next((iface for iface in next_sw_config["interfaces"] if iface.get("neighbor") == s_name), None)
+    # #             if not in_iface_next_hop: continue
+                
+    # #             out_port = int(out_iface["name"].split("eth")[-1])
+    # #             new_src_mac = out_iface["mac"]
+    # #             new_dst_mac = in_iface_next_hop["mac"]
+
+    # #         else:
+    # #             # This is the final hop from the last switch to the destination host
+                
+    # #             # Find the interface on the last switch connected to the destination host's subnet
+    # #             dst_host_ip_obj = ipaddress.ip_address(dst_ip)
+    # #             out_iface = next((iface for iface in sw["interfaces"] if dst_host_ip_obj in ipaddress.ip_network(iface["subnet"])), None)
+    # #             if not out_iface: continue
+                
+    # #             out_port = int(out_iface["name"].split("eth")[-1])
+    # #             new_src_mac = out_iface["mac"]
+    # #             new_dst_mac = dst_host_mac # The final destination MAC is the host's MAC
+            
+    # #         # Define the match and actions for the flow rule
+    # #         match = parser.OFPMatch(eth_type=ether_types.ETH_TYPE_IP, ipv4_dst=dst_ip)
+    # #         actions = [
+    # #             parser.OFPActionSetField(eth_src=new_src_mac),
+    # #             parser.OFPActionSetField(eth_dst=new_dst_mac),
+    # #             parser.OFPActionDecNwTtl(),
+    # #             parser.OFPActionOutput(out_port)
+    # #         ]
+    # #         self.add_flow(dp, 10, match, actions)
+    # #         self.logger.info("Installed L3 flow on %s for dst %s -> port %d (MACs %s -> %s)", 
+    # #                          s_name, dst_ip, out_port, new_src_mac, new_dst_mac)
+
+
+
+
+    # # def install_path(self, path, dst_ip):
+    # #     for i in range(len(path) - 1):
+    # #         s1, s2 = path[i], path[i + 1]
+    # #         sw = self.switches[s1]
+    # #         out_port = None
+    # #         for iface in sw["interfaces"]:
+    # #             if iface["neighbor"] == s2:
+    # #                 out_port = int(iface["name"].split("eth")[-1])
+    # #                 break
+    # #         if not out_port:
+    # #             continue
+    # #         dp = next((d for d in self.datapaths.values() if d.id == sw["dpid"]), None)
+    # #         if dp:
+    # #             parser = dp.ofproto_parser
+    # #             match = parser.OFPMatch(eth_type=ether_types.ETH_TYPE_IP, ipv4_dst=dst_ip)
+    # #             actions = [parser.OFPActionOutput(out_port)]
+    # #             self.add_flow(dp, 10, match, actions)
+    # #             self.logger.info("Installed flow on %s for dst %s -> port %s", s1, dst_ip, out_port)
 

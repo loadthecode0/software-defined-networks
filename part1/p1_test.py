@@ -51,12 +51,12 @@ def run_test(controller_type):
     net.build()
     net.start()
 
-    info("*** Running pingall test\n")
-    net.pingAll()
+    # info("*** Running pingall test\n")
+    # net.pingAll()
 
-    info("*** Running iperf test between h1 and h3\n")
-    h1, h3 = net.get("h1"), net.get("h3")
-    net.iperf((h1, h3))
+    # info("*** Running iperf test between h1 and h3\n")
+    # h1, h3 = net.get("h1"), net.get("h3")
+    # net.iperf((h1, h3))
 
     info("*** You can run more commands in the CLI\n")
     CLI(net)

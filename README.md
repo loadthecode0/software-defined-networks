@@ -31,6 +31,11 @@ sudo python3 part1/p1_test.py hub
 ```
 sudo python3 part1/p1_test.py learning
 ```
+#### Run `iperf` with h3 as server and h1 as client:
+```
+mininet> h3 iperf -s &
+mininet> h1 iperf -c h3 -t 10 -P 2
+```
 
 ### PART 2
 
@@ -39,21 +44,27 @@ sudo python3 part1/p1_test.py learning
 ryu-manager part2/p2_l2spf.py
 ```
 
-#### For Learning Switch
+#### For Dynamic Path Selection
 ```
 ryu-manager part2/p2bonus_l2spf.py
 ```
 
 In another terminal, start the test script:
 
-#### Test Hub
+#### Test L2SPF Controller
 ```
 sudo python3 part2/p2_test.py sp
 ```
 
-#### Test Learning Switch
+#### Test Dynamic Path Selection
 ```
 sudo python3 part2/p2_test.py lb
+```
+
+#### Run `iperf` with h2 as server and h1 as client:
+```
+mininet> h2 iperf -s &
+mininet> h1 iperf -c h2 -t 10 -P 2
 ```
 
 ### Look at the installed rules at a node

@@ -27,15 +27,15 @@ def start_iperf(h1, h2, h1_ip, h2_ip, total_seconds, prefer_iperf3=True):
         h2.cmd(f"iperf3 -s -1 > {s_log} 2>&1 &")
         time.sleep(0.5)
         ip = h2_ip.split("/")[0]
-        h1.cmd(f"iperf3 -c {ip} -t {int(total_seconds)} -i 1 > {c_log} 2>&1 &")
+        h1.cmd(f"iperf3 -c {ip} -t {int(total_seconds)} -i 0.5 > {c_log} 2>&1 &")
     else:
         h2.cmd(f"iperf -s > {s_log} 2>&1 &")
         time.sleep(0.5)
         ip = h2_ip.split("/")[0]
-        h1.cmd(f"iperf -c {ip} -t {int(total_seconds)} -i 1 > {c_log} 2>&1 &")
+        h1.cmd(f"iperf -c {ip} -t {int(total_seconds)} -i 0.5 > {c_log} 2>&1 &")
     return s_log, c_log
 
-def link_flap_exp(net, e, h1_ip, h2_ip, iperf_time = 15, link_down_duration = 5, link_down_time = 2):
+def link_flap_exp(net, edges, h1_ip, h2_ip, iperf_time = 30, link_down_duration = 15, link_down_time = 2):
     """Choose distinct edges and flap them in sequence."""
     h1, h2 = net.get("h1"), net.get("h2")
     s_log, c_log = start_iperf(h1, h2, h1_ip, h2_ip, iperf_time)
@@ -44,12 +44,16 @@ def link_flap_exp(net, e, h1_ip, h2_ip, iperf_time = 15, link_down_duration = 5,
 
     time.sleep(link_down_time)
 
-    key = (e["s_i"], e["s_j"], e["i_if"], e["j_if"])
-    print(f"DOWN {e['s_i']}:{e['i_if']} <-> {e['s_j']}:{e['j_if']} for {link_down_duration}s")
-    if_down_up(net, e, down=True) ## code to toggle the link
+    for e in edges:
+        key = (e["s_i"], e["s_j"], e["i_if"], e["j_if"])
+        print(f"DOWN {e['s_i']}:{e['i_if']} <-> {e['s_j']}:{e['j_if']} for {link_down_duration}s")
+        if_down_up(net, e, down=True) ## code to toggle the link
+git stat
     time.sleep(link_down_duration)
-    print(f"UP   {e['s_i']}:{e['i_if']} <-> {e['s_j']}:{e['j_if']}")
-    if_down_up(net, e, down=False)
+
+    # for e in edges:
+    #     print(f"UP   {e['s_i']}:{e['i_if']} <-> {e['s_j']}:{e['j_if']}")
+    #     if_down_up(net, e, down=False)
 
     print("*** Flaps done; waiting a few seconds for iperf to finish…")
     time.sleep(iperf_time-link_down_duration-link_down_time)
@@ -96,10 +100,13 @@ def main():
             print("⚠️  OSPF did not converge within timeout; continuing anyway.")
 
         # 4) Link flap experiment
-        e = None
+        # e = None
+        e = []
         for x in meta_ospf["edges"]:
-            if x["s_i"] == "s2" and x["s_j"] == "s3":
-                e = x
+            if (x["s_i"] == "s2" and x["s_j"] == "s3"):
+                # e = x
+                print(x["s_i"], x["s_j"])
+                e.append(x)
         c_log, s_log, c_out, s_out = link_flap_exp(
             net, e, h1_ip=H1_IP, h2_ip=H2_IP)
 

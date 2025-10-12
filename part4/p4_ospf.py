@@ -64,7 +64,8 @@ def wait_for_convergence(net, meta, timeout=120, poll=1.0):
     """Convergence proxy: r1 has OSPF route to h2/24 AND rN has route to h1/24."""
     r1_dst = meta["host_links"]["h2_ip"].rsplit('.', 1)[0] + ".0/24"
     rN_dst = meta["host_links"]["h1_ip"].rsplit('.', 1)[0] + ".0/24"
-    deadline = time.time() + timeout
+    start_time = time.time()
+    deadline = start_time + timeout
     r1 = net.get("s1")
     rN = net.get(meta["routers"][-1])
 
@@ -72,6 +73,7 @@ def wait_for_convergence(net, meta, timeout=120, poll=1.0):
         r1_ok = r1_dst in r1.cmd("ip route | grep 'proto ospf' || true")
         rN_ok = rN_dst in rN.cmd("ip route | grep 'proto ospf' || true")
         if r1_ok and rN_ok:
+            print(f"Convergence in {time.time() - start_time} seconds.")
             return True
         time.sleep(poll)
     return False

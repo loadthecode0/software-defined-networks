@@ -17,6 +17,8 @@ from ryu.controller import ofp_event
 from ryu.controller.handler import MAIN_DISPATCHER, set_ev_cls
 from ryu.lib.packet import packet, ethernet, ether_types
 
+import time
+
 class ShortestPathController(BaseSPController):
     """Normal shortest path routing (ECMP random if enabled)"""
 
@@ -43,7 +45,7 @@ class ShortestPathController(BaseSPController):
         # convenience: find dpids list from path
         dpids = [int(s[1:]) for s in path]
 
-        # Get host ports (may be needed for final hop)
+        # Get host switches and ports (may be needed for final hop)
         dst_info = self.host_location.get(dst_mac)
         src_info = self.host_location.get(src_mac)
         dst_dpid = dst_info[0] if dst_info else None
@@ -91,6 +93,7 @@ class ShortestPathController(BaseSPController):
                 self.add_flow(dp, priority=1, match=match_rev, actions=actions_rev)
 
             self.logger.info("s%s: installed %s->%s out:%s and reverse out:%s", cur, src_mac, dst_mac, out_port, rev_out)
+            time.sleep(1)
 
         # Install rule on the *destination switch* to forward to host port (if not same as previous step)
         final_switch = dpids[-1]
@@ -147,19 +150,9 @@ class ShortestPathController(BaseSPController):
             self.host_location[src] = (dpid, in_port)
             self.logger.info("Learned host %s at s%s:%s", src, dpid, in_port)
 
-        # If packet came from another switch (not directly a host), update adjacency
-        # Example: cur_switch = s1, next_switch = s2
-        # for neighbor in self.graph.G[f"s{dpid}"]:   # check known neighbors in graph
-        #     if neighbor.startswith("s"):           # only care about switches
-        #         neighbor_dpid = int(neighbor[1:])
-        #         # Record adjacency: this port on cur_switch leads to neighbor
-        #         if neighbor_dpid not in self.adjacency[dpid]:
-        #             self.adjacency[dpid][neighbor_dpid] = in_port
-        #             self.logger.info("Adjacency learned: s%s → s%s via port %s",
-        #                             dpid, neighbor_dpid, in_port)
-
         # if controller doesn't know destination, flood
         if dst not in self.mac_to_port[dpid] or dst not in self.host_location:
+            self.logger.debug("[FLOOD] Unknown destination %s (src=%s, s%s)", dst, src, dpid)
             actions = [parser.OFPActionOutput(ofproto.OFPP_FLOOD)]
             out = parser.OFPPacketOut(
                 datapath=dp, buffer_id=msg.buffer_id, in_port=in_port,
@@ -177,6 +170,7 @@ class ShortestPathController(BaseSPController):
         path = self.choose_path(all_paths)
 
         if path:
+            self.logger.info(f"[INSTALL] from switch {dpid}")
             self.install_path_flows(path, src_mac=src, dst_mac=dst)
 
         # Also send this first packet along the path immediately

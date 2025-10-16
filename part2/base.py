@@ -189,8 +189,8 @@ class BaseSPController(app_manager.RyuApp):
         # but the local port on dst_dpid which observed it is dst_port
         self.adjacency[src_dpid][dst_dpid] = src_port
         self.adjacency[dst_dpid][src_dpid] = dst_port
-        self.logger.info("Discovered link: s%s:%s <-> s%s:%s", src_dpid, src_port, dst_dpid, dst_port)
-        self.logger.info("Adjacency now: %s", dict(self.adjacency))
+        # self.logger.info("Discovered link: s%s:%s <-> s%s:%s", src_dpid, src_port, dst_dpid, dst_port)
+        # self.logger.info("Adjacency now: %s", dict(self.adjacency))
 
     # ------------------ Subclass hooks ------------------
     def choose_path(self, all_paths: List[List[str]]) -> List[str]:

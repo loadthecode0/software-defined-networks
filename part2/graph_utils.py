@@ -27,7 +27,9 @@ class NetworkGraph:
             for j in range(n):
                 w = weight_matrix[i][j]
                 if w and w > 0: # 0 means no connection except the diagonal
-                    self.G.add_edge(nodes[i], nodes[j], weight=w)
+                    self.G.add_edge(nodes[i], nodes[j], weight=w, utilization=0)
+                    # self.G[nodes[i]][nodes[j]]["utilization"] = 0.0
+                    # self.graph.update_utilization(f"s{nodes[i]}", f"s{nodes[j]}", delta=1.0)
 
     def dijkstra_shortest_path(self, src: str, dst: str) -> List[str]:
         """Return one shortest path from src to dst."""
@@ -45,6 +47,12 @@ class NetworkGraph:
 
     def update_utilization(self, u: str, v: str, delta: float):
         """Increase utilization on edge (u,v) by delta (can be negative to decrease)."""
+        # print("While updating path utilization this is u and v, {u}, {v}")
+        # print("While updating path utilization this is u and v")
+        # print(u)
+        # print(v)
+        # if self.G.has_edge("s"+str(u), "s"+str(v)):
+        #     self.G["s"+str(u)]["s"+str(v)]["utilization"] += delta
         if self.G.has_edge(u, v):
             self.G[u][v]["utilization"] += delta
             if self.G[u][v]["utilization"] < 0:
@@ -52,12 +60,21 @@ class NetworkGraph:
 
     def get_utilization(self, u: str, v: str) -> float:
         """Get current utilization of edge (u,v)."""
+        # print("While getting path utilization this is u and v")
+        # print(u)
+        # print(v)
         return self.G[u][v].get("utilization", 0.0) if self.G.has_edge(u, v) else float("inf")
 
     def path_utilization(self, path: List[str]) -> float:
         """Return total utilization along a path."""
         util = 0.0
         for i in range(len(path) - 1):
+            # u, v = int(path[i][1]), int(path[i + 1][1])
+            # u, v = int(path[i][1:]), int(path[i + 1][1:])
             u, v = path[i], path[i + 1]
+
+            # print("While calculating path utilization this is u and v")
+            # print(u)
+            # print(v)
             util += self.get_utilization(u, v)
         return util

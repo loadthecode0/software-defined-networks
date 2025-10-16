@@ -48,7 +48,7 @@ class LearningSwitch(BaseController):
             else:
                 self.add_flow(datapath, 1, match, actions)
 
-        # Send packet out (controller forwards the packet once)
+    
         out = parser.OFPPacketOut(datapath=datapath,
                                   buffer_id=msg.buffer_id,
                                   in_port=in_port,

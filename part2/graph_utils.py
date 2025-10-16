@@ -48,9 +48,9 @@ class NetworkGraph:
     def update_utilization(self, u: str, v: str, delta: float):
         """Increase utilization on edge (u,v) by delta (can be negative to decrease)."""
         # print("While updating path utilization this is u and v, {u}, {v}")
-        print("While updating path utilization this is u and v")
-        print(u)
-        print(v)
+        # print("While updating path utilization this is u and v")
+        # print(u)
+        # print(v)
         # if self.G.has_edge("s"+str(u), "s"+str(v)):
         #     self.G["s"+str(u)]["s"+str(v)]["utilization"] += delta
         if self.G.has_edge(u, v):
@@ -60,9 +60,9 @@ class NetworkGraph:
 
     def get_utilization(self, u: str, v: str) -> float:
         """Get current utilization of edge (u,v)."""
-        print("While getting path utilization this is u and v")
-        print(u)
-        print(v)
+        # print("While getting path utilization this is u and v")
+        # print(u)
+        # print(v)
         return self.G[u][v].get("utilization", 0.0) if self.G.has_edge(u, v) else float("inf")
 
     def path_utilization(self, path: List[str]) -> float:
@@ -73,8 +73,8 @@ class NetworkGraph:
             # u, v = int(path[i][1:]), int(path[i + 1][1:])
             u, v = path[i], path[i + 1]
 
-            print("While calculating path utilization this is u and v")
-            print(u)
-            print(v)
+            # print("While calculating path utilization this is u and v")
+            # print(u)
+            # print(v)
             util += self.get_utilization(u, v)
         return util

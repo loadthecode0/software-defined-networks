@@ -62,7 +62,7 @@ class ShortestPathController(BaseSPController):
         dst_host_port = dst_info[1] if dst_info else None
         src_dpid = src_info[0] if src_info else None
         src_host_port = src_info[1] if src_info else None
-
+        fwd_match_kwargs = dict(eth_src=src_mac, eth_dst=dst_mac)
         # Install forward flows on each hop: for hop i -> i+1 install on dpids[i]
         for i in range(len(dpids) - 1):
             cur = dpids[i]
